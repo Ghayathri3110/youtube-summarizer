@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reel — Video to Text</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e10;
+    --bg-raised: #18181b;
+    --card: #1f1f23;
+    --line: #2e2e33;
+    --paper: #f2efe9;
+    --paper-dim: #b4b1ac;
+    --amber: #e8a33d;
+    --amber-dim: #5c4422;
+    --sage: #7a9b7e;
+    --error: #c4694a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--paper);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 20% 0%, rgba(232,163,61,0.05), transparent 45%),
+      radial-gradient(circle at 80% 100%, rgba(122,155,126,0.04), transparent 40%);
+  }
+
+  .sprocket-rail {
+    position: fixed;
+    top: 0; bottom: 0;
+    width: 28px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    align-items: center;
+    opacity: 0.5;
+    pointer-events: none;
+  }
+  .sprocket-rail.left { left: 0; }
+  .sprocket-rail.right { right: 0; }
+  .sprocket-hole {
+    width: 10px;
+    height: 14px;
+    border-radius: 3px;
+    background: var(--line);
+  }
+
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 64px 32px 100px;
+  }
+
+  header { margin-bottom: 56px; }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    color: var(--amber);
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .eyebrow::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--amber);
+    display: inline-block;
+  }
+
+  h1 {
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: clamp(40px, 7vw, 58px);
+    letter-spacing: -0.01em;
+    line-height: 1.02;
+    text-transform: uppercase;
+  }
+  h1 span { color: var(--amber); }
+
+  .subhead {
+    margin-top: 16px;
+    font-size: 16px;
+    color: var(--paper-dim);
+    max-width: 480px;
+    line-height: 1.55;
+  }
+
+  /* --- Input form, styled like a film frame --- */
+  .frame {
+    position: relative;
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px;
+  }
+  .frame-strip {
+    display: flex;
+    gap: 4px;
+    padding: 4px 4px 10px;
+  }
+  .frame-strip span {
+    flex: 1;
+    height: 4px;
+    background: var(--line);
+    border-radius: 2px;
+  }
+  .frame-strip.bottom { padding: 10px 4px 4px; }
+
+  .input-row {
+    display: flex;
+    gap: 10px;
+    padding: 6px;
+  }
+
+  input[type="text"] {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 16px 18px;
+    color: var(--paper);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+  input[type="text"]::placeholder { color: #5c5c62; }
+  input[type="text"]:focus { border-color: var(--amber); }
+  input[type="text"]:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+  button.go {
+    background: var(--amber);
+    color: #1a1304;
+    border: none;
+    border-radius: 6px;
+    padding: 0 26px;
+    font-family: 'Oswald', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.15s ease;
+    white-space: nowrap;
+  }
+  button.go:hover:not(:disabled) { background: #f0b860; }
+  button.go:active:not(:disabled) { transform: scale(0.97); }
+  button.go:disabled { background: var(--amber-dim); color: #8a7654; cursor: not-allowed; }
+  button.go:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+  .hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #5c5c62;
+    margin-top: 14px;
+    padding-left: 2px;
+  }
+
+  .mode-toggle {
+    display: flex;
+    gap: 8px;
+    margin-top: 18px;
+  }
+  .mode-btn {
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    color: var(--paper-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
+    padding: 9px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .mode-btn:hover { color: var(--paper); border-color: #45454a; }
+  .mode-btn.active {
+    background: var(--amber-dim);
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+  .mode-btn:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+  /* --- States --- */
+  .panel {
+    margin-top: 28px;
+  }
+
+  /* Loading: film strip advancing through a projector gate */
+  .processing {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg-raised);
+    padding: 32px;
+    text-align: center;
+  }
+  .gate {
+    position: relative;
+    width: 100%;
+    height: 56px;
+    overflow: hidden;
+    border-radius: 4px;
+    background: #000;
+    margin-bottom: 20px;
+    border: 1px solid var(--line);
+  }
+  .filmstrip {
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    display: flex;
+    animation: advance 1.4s linear infinite;
+  }
+  .frame-cell {
+    width: 56px;
+    height: 100%;
+    flex-shrink: 0;
+    border-right: 2px solid var(--bg);
+    background: linear-gradient(135deg, #2a2a2e, #1a1a1d);
+    position: relative;
+  }
+  .frame-cell::before, .frame-cell::after {
+    content: '';
+    position: absolute;
+    width: 6px; height: 6px;
+    background: var(--bg);
+    border-radius: 1px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .frame-cell::before { top: 4px; }
+  .frame-cell::after { bottom: 4px; }
+  @keyframes advance {
+    from { transform: translateX(0); }
+    to { transform: translateX(-112px); }
+  }
+  .gate-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, var(--bg-raised) 0%, transparent 12%, transparent 88%, var(--bg-raised) 100%);
+  }
+
+  .status-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--amber);
+    letter-spacing: 0.04em;
+    min-height: 18px;
+  }
+  .status-sub {
+    font-size: 13px;
+    color: var(--paper-dim);
+    margin-top: 8px;
+  }
+
+  /* Error */
+  .error-box {
+    border: 1px solid #4a2e24;
+    background: rgba(196,105,74,0.08);
+    border-radius: 8px;
+    padding: 20px 22px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .error-icon {
+    color: var(--error);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 13px;
+    border: 1px solid var(--error);
+    border-radius: 50%;
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .error-title {
+    font-weight: 600;
+    color: #e8a08c;
+    margin-bottom: 4px;
+    font-size: 14px;
+  }
+  .error-detail {
+    font-size: 13px;
+    color: var(--paper-dim);
+    line-height: 1.5;
+  }
+
+  /* Result */
+  .result {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg-raised);
+    overflow: hidden;
+  }
+  .result-head {
+    padding: 22px 24px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .video-title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 19px;
+    font-weight: 500;
+    line-height: 1.3;
+  }
+  .timecode {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--amber);
+    background: var(--amber-dim);
+    padding: 4px 9px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .result-body { padding: 24px; }
+
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--paper-dim);
+    margin-bottom: 10px;
+  }
+
+  .overview-text {
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--paper);
+    margin-bottom: 28px;
+  }
+
+  .takeaways { list-style: none; }
+  .takeaways li {
+    display: flex;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+    font-size: 14.5px;
+    line-height: 1.55;
+  }
+  .takeaways li:first-child { border-top: none; }
+  .takeaways li::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--sage);
+    margin-top: 8px;
+    flex-shrink: 0;
+  }
+
+  /* Notes mode: sectioned study notes */
+  .notes-section {
+    margin-bottom: 26px;
+  }
+  .notes-section:last-child { margin-bottom: 0; }
+  .notes-section-title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--amber);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+  }
+  .notes-section-context {
+    font-size: 14px;
+    color: var(--paper-dim);
+    line-height: 1.6;
+    margin-bottom: 10px;
+  }
+  .notes-list { list-style: none; }
+  .notes-list > li {
+    padding: 7px 0;
+    font-size: 14.5px;
+    line-height: 1.6;
+    display: flex;
+    gap: 10px;
+  }
+  .notes-list > li::before {
+    content: '–';
+    color: var(--sage);
+    flex-shrink: 0;
+  }
+  .notes-sublist { list-style: none; margin-top: 4px; margin-left: 18px; }
+  .notes-sublist li {
+    font-size: 13.5px;
+    color: var(--paper-dim);
+    padding: 4px 0;
+    display: flex;
+    gap: 8px;
+    line-height: 1.55;
+  }
+  .notes-sublist li::before {
+    content: '·';
+    color: #5c5c62;
+    flex-shrink: 0;
+  }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--line);
+    background: var(--card);
+  }
+  .pill-btn {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--paper-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 8px 14px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .pill-btn:hover { border-color: var(--amber); color: var(--amber); }
+  .pill-btn:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+  .pill-btn.active { border-color: var(--amber); color: var(--amber); background: var(--amber-dim); }
+
+  .transcript-box {
+    padding: 24px;
+    border-top: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--paper-dim);
+    max-height: 320px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    display: none;
+  }
+  .transcript-box.open { display: block; }
+
+  footer {
+    margin-top: 64px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #45454a;
+    letter-spacing: 0.04em;
+    text-align: center;
+  }
+
+  @media (max-width: 540px) {
+    .input-row { flex-direction: column; }
+    button.go { padding: 14px; }
+    .result-head { flex-direction: column; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .filmstrip { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sprocket-rail left" id="rail-left"></div>
+<div class="sprocket-rail right" id="rail-right"></div>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">AI Transcript Engine</div>
+    <h1>Paste a link.<br>Get the <span>gist</span>.</h1>
+    <p class="subhead">Drop in any YouTube URL. We pull the audio, transcribe every word, and hand you back the overview — no watching required.</p>
+  </header>
+
+  <form class="frame" id="form">
+    <div class="frame-strip top">
+      <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
+    <div class="input-row">
+      <input type="text" id="url-input" placeholder="https://youtube.com/watch?v=..." autocomplete="off" />
+      <button type="submit" class="go" id="go-btn">Summarize</button>
+    </div>
+    <div class="frame-strip bottom">
+      <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
+  </form>
+
+  <div class="mode-toggle" id="mode-toggle">
+    <button type="button" class="mode-btn active" data-mode="summary">Quick Summary</button>
+    <button type="button" class="mode-btn" data-mode="notes">Full Notes</button>
+  </div>
+
+  <p class="hint">Works on any public video with audio — captions not required.</p>
+
+  <div class="panel" id="panel"></div>
+
+  <footer>BUILT WITH WHISPER + LLAMA ON GROQ — RUNS LOCAL ON :8000</footer>
+</div>
+
+<script>
+  const API_BASE = "http://127.0.0.1:8000";
+
+  const form = document.getElementById('form');
+  const input = document.getElementById('url-input');
+  const goBtn = document.getElementById('go-btn');
+  const panel = document.getElementById('panel');
+  const modeButtons = document.querySelectorAll('.mode-btn');
+
+  let currentMode = 'summary';
+
+  modeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      modeButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentMode = btn.dataset.mode;
+      goBtn.textContent = currentMode === 'notes' ? 'Generate Notes' : 'Summarize';
+    });
+  });
+
+  // Build sprocket holes along the side rails
+  function buildRail(id, count) {
+    const rail = document.getElementById(id);
+    for (let i = 0; i < count; i++) {
+      const hole = document.createElement('div');
+      hole.className = 'sprocket-hole';
+      rail.appendChild(hole);
+    }
+  }
+  buildRail('rail-left', 24);
+  buildRail('rail-right', 24);
+
+  function formatDuration(seconds) {
+    if (!seconds) return '--:--';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Parses the "**Overview:** ... **Key Takeaways:** - a - b" format
+  // from the backend into structured pieces for nicer rendering.
+  function parseSummary(raw) {
+    const overviewMatch = raw.match(/\*\*Overview:\*\*([\s\S]*?)\*\*Key Takeaways:\*\*/i);
+    const takeawaysMatch = raw.match(/\*\*Key Takeaways:\*\*([\s\S]*)/i);
+
+    const overview = overviewMatch ? overviewMatch[1].trim() : raw.trim();
+    let takeaways = [];
+    if (takeawaysMatch) {
+      takeaways = takeawaysMatch[1]
+        .split('\n')
+        .map(line => line.replace(/^[\s-•]+/, '').trim())
+        .filter(line => line.length > 0);
+    }
+    return { overview, takeaways };
+  }
+
+  // Parses "## Section\ncontext\n- point\n  - subpoint" format into
+  // structured sections for nicer rendering.
+  function parseNotes(raw) {
+    const lines = raw.split('\n');
+    const sections = [];
+    let current = null;
+
+    for (const line of lines) {
+      const headerMatch = line.match(/^##\s+(.+)/);
+      if (headerMatch) {
+        current = { title: headerMatch[1].trim(), context: '', items: [] };
+        sections.push(current);
+        continue;
+      }
+      if (!current) continue;
+
+      const subMatch = line.match(/^\s{2,}-\s+(.+)/);
+      const mainMatch = line.match(/^-\s+(.+)/);
+
+      if (subMatch) {
+        if (current.items.length > 0) {
+          current.items[current.items.length - 1].sub.push(subMatch[1].trim());
+        }
+      } else if (mainMatch) {
+        current.items.push({ text: mainMatch[1].trim(), sub: [] });
+      } else if (line.trim().length > 0) {
+        current.context += (current.context ? ' ' : '') + line.trim();
+      }
+    }
+    return sections;
+  }
+
+  function showLoading(mode) {
+    const subMessage = mode === 'notes'
+      ? 'Full notes take a bit longer — usually 30–60 seconds.'
+      : 'This usually takes 15–40 seconds depending on video length.';
+
+    panel.innerHTML = `
+      <div class="processing">
+        <div class="gate">
+          <div class="filmstrip">
+            ${Array(10).fill('<div class="frame-cell"></div>').join('')}
+          </div>
+          <div class="gate-overlay"></div>
+        </div>
+        <div class="status-text" id="status-text">FETCHING AUDIO TRACK…</div>
+        <div class="status-sub">${subMessage}</div>
+      </div>
+    `;
+    const statusEl = document.getElementById('status-text');
+    const messages = mode === 'notes'
+      ? ['FETCHING AUDIO TRACK…', 'TRANSCRIBING SPEECH…', 'STRUCTURING SECTIONS…', 'WRITING DETAILED NOTES…', 'ALMOST THERE…']
+      : ['FETCHING AUDIO TRACK…', 'TRANSCRIBING SPEECH…', 'DISTILLING KEY POINTS…', 'ALMOST THERE…'];
+    let i = 0;
+    return setInterval(() => {
+      i = (i + 1) % messages.length;
+      if (statusEl) statusEl.textContent = messages[i];
+    }, 4000);
+  }
+
+  function showError(message) {
+    panel.innerHTML = `
+      <div class="error-box">
+        <div class="error-icon">!</div>
+        <div>
+          <div class="error-title">Couldn't process that video</div>
+          <div class="error-detail">${escapeHtml(message)}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function showResult(data) {
+    const isNotes = data.mode === 'notes';
+
+    let bodyHtml = '';
+    if (isNotes) {
+      const sections = parseNotes(data.summary || '');
+      bodyHtml = sections.map(section => `
+        <div class="notes-section">
+          <div class="notes-section-title">${escapeHtml(section.title)}</div>
+          ${section.context ? `<div class="notes-section-context">${escapeHtml(section.context)}</div>` : ''}
+          <ul class="notes-list">
+            ${section.items.map(item => `
+              <li>
+                <span>
+                  ${escapeHtml(item.text)}
+                  ${item.sub.length > 0 ? `<ul class="notes-sublist">${item.sub.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul>` : ''}
+                </span>
+              </li>
+            `).join('')}
+          </ul>
+        </div>
+      `).join('');
+    } else {
+      const { overview, takeaways } = parseSummary(data.summary || '');
+      bodyHtml = `
+        <div class="section-label">Overview</div>
+        <div class="overview-text">${escapeHtml(overview)}</div>
+        <div class="section-label">Key Takeaways</div>
+        <ul class="takeaways">
+          ${takeaways.map(t => `<li>${escapeHtml(t)}</li>`).join('')}
+        </ul>
+      `;
+    }
+
+    panel.innerHTML = `
+      <div class="result">
+        <div class="result-head">
+          <div class="video-title">${escapeHtml(data.title || 'Untitled video')}</div>
+          <div class="timecode">${formatDuration(data.duration_seconds)}</div>
+        </div>
+        <div class="result-body">
+          ${bodyHtml}
+        </div>
+        <div class="actions">
+          <button class="pill-btn" id="toggle-transcript">View full transcript</button>
+          <button class="pill-btn" id="copy-summary">Copy ${isNotes ? 'notes' : 'summary'}</button>
+        </div>
+        <div class="transcript-box" id="transcript-box">${escapeHtml(data.transcript || '')}</div>
+      </div>
+    `;
+
+    document.getElementById('toggle-transcript').addEventListener('click', (e) => {
+      const box = document.getElementById('transcript-box');
+      box.classList.toggle('open');
+      e.target.classList.toggle('active');
+      e.target.textContent = box.classList.contains('open') ? 'Hide full transcript' : 'View full transcript';
+    });
+
+    document.getElementById('copy-summary').addEventListener('click', (e) => {
+      navigator.clipboard.writeText(data.summary || '').then(() => {
+        const original = e.target.textContent;
+        e.target.textContent = 'Copied!';
+        setTimeout(() => { e.target.textContent = original; }, 1500);
+      });
+    });
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const url = input.value.trim();
+    if (!url) return;
+
+    goBtn.disabled = true;
+    goBtn.textContent = 'Working…';
+    const intervalId = showLoading(currentMode);
+
+    try {
+      const response = await fetch(`${API_BASE}/summarize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, mode: currentMode }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Something went wrong on the server.');
+      }
+
+      showResult(data);
+    } catch (err) {
+      showError(err.message || 'Could not reach the backend. Is it running on port 8000?');
+    } finally {
+      clearInterval(intervalId);
+      goBtn.disabled = false;
+      goBtn.textContent = currentMode === 'notes' ? 'Generate Notes' : 'Summarize';
+    }
+  });
+</script>
+
+</body>
+</html>
