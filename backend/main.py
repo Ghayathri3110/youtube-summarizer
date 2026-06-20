@@ -14,6 +14,14 @@ groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 app = FastAPI()
 
+# Fallback: if cookies were provided via environment variable instead of
+# Render's Secret Files feature, write them to disk so yt-dlp can use them.
+_cookies_env = os.environ.get("YOUTUBE_COOKIES")
+_cookie_path_at_startup = os.path.join(os.path.dirname(__file__), "cookies.txt")
+if _cookies_env and not os.path.exists(_cookie_path_at_startup):
+    with open(_cookie_path_at_startup, "w", encoding="utf-8") as f:
+        f.write(_cookies_env)
+
 # Allow only our deployed frontend to talk to this backend.
 app.add_middleware(
     CORSMiddleware,
@@ -60,10 +68,15 @@ def download_audio_from_youtube(video_url: str) -> dict:
 
     # If a cookies file is present, use it so requests look like they're
     # coming from a logged-in browser session (helps avoid YouTube's
-    # bot-detection on cloud server IPs).
-    cookie_path = os.path.join(os.path.dirname(__file__), "cookies.txt")
-    if os.path.exists(cookie_path):
-        ydl_opts["cookiefile"] = cookie_path
+    # bot-detection on cloud server IPs). On Render's Docker-based deploys,
+    # secret files land at /etc/secrets/<filename>, not the app root.
+    render_secret_path = "/etc/secrets/cookies.txt"
+    local_cookie_path = os.path.join(os.path.dirname(__file__), "cookies.txt")
+
+    if os.path.exists(render_secret_path):
+        ydl_opts["cookiefile"] = render_secret_path
+    elif os.path.exists(local_cookie_path):
+        ydl_opts["cookiefile"] = local_cookie_path
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
