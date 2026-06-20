@@ -14,11 +14,14 @@ groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 app = FastAPI()
 
-# Allow the frontend (running on a different port) to talk to this backend.
-# In Stage 1 we're being permissive; we'll tighten this before deploying.
+# Allow only our deployed frontend to talk to this backend.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://youtubesummm.netlify.app",
+        "http://127.0.0.1:5500",   # for local testing (e.g. VS Code Live Server)
+        "null",                     # for opening index.html directly via file://
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -54,6 +57,13 @@ def download_audio_from_youtube(video_url: str) -> dict:
         "quiet": True,
         "no_warnings": True,
     }
+
+    # If a cookies file is present, use it so requests look like they're
+    # coming from a logged-in browser session (helps avoid YouTube's
+    # bot-detection on cloud server IPs).
+    cookie_path = os.path.join(os.path.dirname(__file__), "cookies.txt")
+    if os.path.exists(cookie_path):
+        ydl_opts["cookiefile"] = cookie_path
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
