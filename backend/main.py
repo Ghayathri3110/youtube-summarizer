@@ -196,6 +196,34 @@ def root():
     return {"status": "Backend is running"}
 
 
+@app.get("/debug-cookies")
+def debug_cookies():
+    """
+    TEMPORARY debug endpoint - checks whether the cookies file exists and
+    looks valid, without exposing its actual contents. Remove this once
+    cookies are confirmed working.
+    """
+    render_secret_path = "/etc/secrets/cookies.txt"
+    local_cookie_path = os.path.join(os.path.dirname(__file__), "cookies.txt")
+
+    result = {}
+    for label, path in [("render_secret_path", render_secret_path), ("local_path", local_cookie_path)]:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                first_line = f.readline().strip()
+                content = f.read()
+            result[label] = {
+                "exists": True,
+                "size_bytes": os.path.getsize(path),
+                "first_line": first_line,
+                "line_count": content.count("\n") + 1,
+            }
+        else:
+            result[label] = {"exists": False}
+
+    return result
+
+
 @app.post("/download-audio")
 def download_audio(request: VideoRequest):
     """
