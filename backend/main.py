@@ -14,14 +14,6 @@ groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 app = FastAPI()
 
-# Fallback: if cookies were provided via environment variable instead of
-# Render's Secret Files feature, write them to disk so yt-dlp can use them.
-_cookies_env = os.environ.get("YOUTUBE_COOKIES")
-_cookie_path_at_startup = os.path.join(os.path.dirname(__file__), "cookies.txt")
-if _cookies_env and not os.path.exists(_cookie_path_at_startup):
-    with open(_cookie_path_at_startup, "w", encoding="utf-8") as f:
-        f.write(_cookies_env)
-
 # Allow only our deployed frontend to talk to this backend.
 app.add_middleware(
     CORSMiddleware,
@@ -65,18 +57,6 @@ def download_audio_from_youtube(video_url: str) -> dict:
         "quiet": True,
         "no_warnings": True,
     }
-
-    # If a cookies file is present, use it so requests look like they're
-    # coming from a logged-in browser session (helps avoid YouTube's
-    # bot-detection on cloud server IPs). On Render's Docker-based deploys,
-    # secret files land at /etc/secrets/<filename>, not the app root.
-    render_secret_path = "/etc/secrets/cookies.txt"
-    local_cookie_path = os.path.join(os.path.dirname(__file__), "cookies.txt")
-
-    if os.path.exists(render_secret_path):
-        ydl_opts["cookiefile"] = render_secret_path
-    elif os.path.exists(local_cookie_path):
-        ydl_opts["cookiefile"] = local_cookie_path
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -194,34 +174,6 @@ Rules:
 @app.get("/")
 def root():
     return {"status": "Backend is running"}
-
-
-@app.get("/debug-cookies")
-def debug_cookies():
-    """
-    TEMPORARY debug endpoint - checks whether the cookies file exists and
-    looks valid, without exposing its actual contents. Remove this once
-    cookies are confirmed working.
-    """
-    render_secret_path = "/etc/secrets/cookies.txt"
-    local_cookie_path = os.path.join(os.path.dirname(__file__), "cookies.txt")
-
-    result = {}
-    for label, path in [("render_secret_path", render_secret_path), ("local_path", local_cookie_path)]:
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                first_line = f.readline().strip()
-                content = f.read()
-            result[label] = {
-                "exists": True,
-                "size_bytes": os.path.getsize(path),
-                "first_line": first_line,
-                "line_count": content.count("\n") + 1,
-            }
-        else:
-            result[label] = {"exists": False}
-
-    return result
 
 
 @app.post("/download-audio")
